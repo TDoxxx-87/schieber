@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="stylesheet" href="css/leaflet.css">
+    <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+    <link rel="stylesheet" href="css/L.Control.Locate.min.css">
+    <link rel="stylesheet" href="css/qgis2web.css">
+    <link rel="stylesheet" href="css/fontawesome-all.min.css">
+    <link rel="stylesheet" href="css/leaflet-control-geocoder.Geocoder.css">
+    <link rel="stylesheet" href="css/leaflet-measure.css">
+    <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        /* Stile für das Deckkraft-Bedienfeld - Position unten rechts */
+        #opacity-control {
+            position: absolute;
+            bottom: 10px; /* Abstand vom unteren Rand */
+            right: 15px; /* Abstand vom rechten Rand */
+            z-index: 1000; /* Stellt sicher, dass es über der Karte liegt */
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+            font-family: sans-serif;
+            font-size: 12px;
+            max-height: 80%; /* Max Höhe bevor Scrollen nötig wird */
+            overflow-y: auto; /* Scrollbar, wenn Inhalt zu lang wird */
+            /* Füge einen Übergang hinzu für sanftes Ein-/Ausblenden */
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+         /* Klasse für ausgeblendetes Bedienfeld */
+        #opacity-control.hidden {
+            opacity: 0;
+            pointer-events: none; /* Macht das ausgeblendete Element nicht klickbar */
+            visibility: hidden; /* Versteckt das Element vollständig */
+        }
+
+        #opacity-control label {
+            display: block; /* Jedes Label in einer neuen Zeile */
+            margin-bottom: 5px; /* Abstand zwischen den Einträgen */
+            white-space: nowrap; /* Verhindert Zeilenumbruch bei Labels */
+        }
+          #opacity-control input[type="range"] {
+              vertical-align: middle; /* Schieberegler mit Label ausrichten */
+              margin-left: 5px;
+              width: 100px; /* Breite des Schiebereglers anpassen */
+          }
+
+        /* Stil für den Toggle-Button */
+        #opacity-toggle-button {
+            position: absolute;
+            bottom: 10px; /* Standard: unten */
+            right: 10px; /* Standard: am rechten Rand */
+            z-index: 1001; /* Über dem Bedienfeld */
+            background: white;
+            border: 1px solid rgba(0,0,0,0.2);
+            border-radius: 5px;
+            padding: 5px;
+            cursor: pointer;
+            font-family: sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+            margin-right: 0; /* Standard: Kein extra Margin */
+            /* Übergang für sanfte Positionsänderung */
+            transition: right 0.3s ease-in-out, margin-right 0.3s ease-in-out;
+        }
+
+        /* Wenn das Panel SICHTBAR ist (!hidden), schiebe den Button nach links */
+        #opacity-control:not(.hidden) + #opacity-toggle-button {
+             right: 15px; /* Am rechten Rand des Panels ausrichten */
+             /* Breite des Panels + gewünschter Abstand. Muss ggf. angepasst werden. */
+             margin-right: 150px; /* Grober Schätzwert, ggf. anpassen */
+        }
+    </style>
+    <title>Interaktive Karte (Nur WMS - Steuerung über Deckkraft)</title>
+</head>
+<body>
+    <div id="map">
+    </div>
+
+    <div id="opacity-control">
+          <label for="opacity-DOP1953">DOP1953:</label>
+          <input type="range" id="opacity-DOP1953" min="0" max="100" value="0"><br>
+          <label for="opacity-DOP20">DOP20:</label>
+          <input type="range" id="opacity-DOP20" min="0" max="100" value="0"><br>
+          <label for="opacity-dr25">Deutsches Reich:</label>
+          <input type="range" id="opacity-dr25" min="0" max="100" value="0"><br>
+          <label for="opacity-Geleande">DGM (WMS):</label>
+          <input type="range" id="opacity-Geleande" min="0" max="100" value="0"><br>
+          <label for="opacity-SCH">Schmettau Karte:</label>
+          <input type="range" id="opacity-SCH" min="0" max="100" value="0"><br>
+          <label for="opacity-DOP1997">Orthophotos 1997:</label>
+          <input type="range" id="opacity-DOP1997" min="0" max="100" value="0"><br>
+          <label for="opacity-alkis_flur">ALKIS Flur (WMS):</label>
+          <input type="range" id="opacity-alkis_flur" min="0" max="100" value="0"><br>
+          <label for="opacity-dop20_2019_2021">DOP20 2019-2021:</label>
+          <input type="range" id="opacity-dop20_2019_2021" min="0" max="100" value="0"><br>
+          <label for="opacity-dop20_2016_2018">DOP20 2016-2018:</label>
+          <input type="range" id="opacity-dop20_2016_2018" min="0" max="100" value="0"><br>
+          <label for="opacity-dop20_2013_2015">DOP20 2013-2015:</label>
+          <input type="range" id="opacity-dop20_2013_2015" min="0" max="100" value="0"><br>
+          <label for="opacity-dop20_2009_2012">DOP20 2009-2012:</label>
+          <input type="range" id="opacity-dop20_2009_2012" min="0" max="100" value="0"><br>
+          <label for="opacity-dop20_2005_2010">DOP20 2005-2010:</label>
+          <input type="range" id="opacity-dop20_2005_2010" min="0" max="100" value="0"><br>
+          <label for="opacity-dop40g_2001_2009">DOP40g 2001-2009:</label>
+          <input type="range" id="opacity-dop40g_2001_2009" min="0" max="100" value="0"><br>
+          <label for="opacity-dop100g_2001_2005">DOP100g 2001-2005:</label>
+          <input type="range" id="opacity-dop100g_2001_2005" min="0" max="100" value="0"><br>
+          <label for="opacity-dtk25_1989_2001_farbe">DTK25 Farbe 1989-2001:</label>
+          <input type="range" id="opacity-dtk25_1989_2001_farbe" min="0" max="100" value="0"><br>
+          <label for="opacity-inspire_cp">INSPIRE ALKIS CP:</label>
+          <input type="range" id="opacity-inspire_cp" min="0" max="100" value="0"><br>
+          <label for="opacity-inspire_hy_n">INSPIRE Hydro Netz:</label>
+          <input type="range" id="opacity-inspire_hy_n" min="0" max="100" value="0"><br>
+          <label for="opacity-inspire_oi">INSPIRE Orthoimagery:</label>
+          <input type="range" id="opacity-inspire_oi" min="0" max="100" value="0"><br>
+          <label for="opacity-inspire_el_dgm1">INSPIRE DGM1:</label>
+          <input type="range" id="opacity-inspire_el_dgm1" min="0" max="100" value="0"><br>
+    </div>
+    <div id="opacity-toggle-button">Deckkraft</div>
+
+    <script src="js/qgis2web_expressions.js"></script>
+    <script src="js/leaflet.js"></script>
+    <script src="js/L.Control.Layers.Tree.min.js"></script>
+    <script src="js/L.Control.Locate.min.js"></script>
+    <script src="js/leaflet.rotatedMarker.js"></script>
+    <script src="js/leaflet.pattern.js"></script> <script src="js/leaflet-hash.js"></script>
+    <script src="js/Autolinker.min.js"></script>
+    <script src="js/rbush.min.js"></script>
+    <script src="js/labelgun.min.js"></script>
+    <script src="js/labels.js"></script>
+    <script src="js/leaflet.wms.js"></script>
+    <script src="js/leaflet-control-geocoder.Geocoder.js"></script>
+    <script src="js/leaflet-measure.js"></script>
+    <script src="js/proj4.js"></script>
+    <script src="js/proj4leaflet.js"></script>
+    <script>
+    var highlightLayer;
+    function highlightFeature(e) {
+        highlightLayer = e.target;
+        // Hervorhebungslogik bleibt unverändert
+        if (e.target.feature.geometry.type === 'LineString' || e.target.feature.geometry.type === 'MultiLineString') {
+            highlightLayer.setStyle({ color: '#ffff00' });
+        } else {
+            highlightLayer.setStyle({ fillColor: '#ffff00', fillOpacity: 1 });
+        }
+        highlightLayer.openPopup();
+    }
+    var crs = new L.Proj.CRS('EPSG:3857', '+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs', {
+        resolutions: [2800, 1400, 700, 350, 175, 84, 42, 21, 11.2, 5.6, 2.8, 1.4, 0.7, 0.35, 0.14, 0.07],
+    });
+    var map = L.map('map', {
+        crs: crs,
+        continuousWorld: false,
+        worldCopyJump: false,
+        zoomControl:false, maxZoom:25, minZoom:1
+    }).fitBounds([[52.051216078120575,13.9772832173521],[52.201040744223434,14.282989714573791]]);
+    var hash = new L.Hash(map);
+    map.attributionControl.setPrefix('<a href="https://github.com/tomchadwin/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+    var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+
+    // Popup-Formatierungsfunktionen bleiben unverändert
+    function removeEmptyRowsFromPopupContent(content, feature) { /* ... */ }
+    function addClassToPopupIfMedia(content, popup) { /* ... */ }
+
+    // Standard-Kartensteuerelemente
+    var zoomControl = L.control.zoom({ position: 'topleft' }).addTo(map);
+    L.control.locate({locateOptions: {maxZoom: 19}}).addTo(map);
+    var measureControl = new L.Control.Measure({
+        position: 'topleft',
+        primaryLengthUnit: 'meters',
+        secondaryLengthUnit: 'kilometers',
+        primaryAreaUnit: 'sqmeters',
+        secondaryAreaUnit: 'hectares'
+    });
+    measureControl.addTo(map);
+    document.getElementsByClassName('leaflet-control-measure-toggle')[0].innerHTML = '';
+    document.getElementsByClassName('leaflet-control-measure-toggle')[0].className += ' fas fa-ruler';
+
+    // --- Definition der WMS-Ebenen (Layer-Variablen) ---
+    // Opacity wird hier initial ignoriert, da die Layer erst bei Bedarf hinzugefügt werden
+    var DOP1953 = L.tileLayer.wms("https://isk.geobasis-bb.de/mapproxy/dop100g_1953/service/wms", { layers: 'bb_dop100g_1953', format: 'image/png', transparent: true, attribution: '<a href="https://isk.geobasis-bb.de/mapproxy/dop100g_1953/service/wms?">bb_dop100g_1953</a>' });
+    var DOP20 = L.tileLayer.wms("https://isk.geobasis-bb.de/mapproxy/dop20c/service/wms", { layers: 'bebb_dop20c', format: 'image/png', transparent: true, attribution: '<a href="https://isk.geobasis-bb.de/mapproxy/dop20c/service/wms?">bebb_dop20c</a>' });
+    var dr25 = L.tileLayer.wms("https://isk.geobasis-bb.de/mapproxy/dr25/service/wms", { layers: 'dr25', format: 'image/png', transparent: true, attribution: '<a href="https://isk.geobasis-bb.de/mapproxy/dr25/service/wms?">dr25</a>' });
+    var Geleande = L.tileLayer.wms("https://isk.geobasis-bb.de/mapproxy/dgm/service/wms", { layers: 'dgm', format: 'image/png', transparent: true, attribution: '<a href="https://isk.geobasis-bb.de/mapproxy/dgm/service/wms?">dgm</a>' });
+    var SCH = L.tileLayer.wms("https://isk.geobasis-bb.de/mapproxy/schmettau/service/wms", { layers: 'schmettau', format: 'image/png', transparent: true, attribution: '<a href="https://isk.geobasis-bb.de/mapproxy/schmettau/service/wms?">schmettau</a>' });
+    var DOP1997 = L.tileLayer.wms("https://isk.geobasis-bb.de/mapproxy/dop50g_1992_1997/service/wms", { layers: 'bb_dop50g_1992_1997', format: 'image/png', transparent: true, attribution: '<a href="https://isk.geobasis-bb.de/mapproxy/dop50g_1992_1997/service/wms?">bb_dop50g_1992_1997</a>' });
+    var alkis_flur = L.tileLayer.wms("https://isk.geobasis-bb.de/ows/alkis_wms?", { layers: 'SW', format: 'image/png', transparent: true, attribution: '<a href="https://isk.geobasis-bb.de/ows/alkis_flur_wms?">ALKIS Flur</a>' });
+    var dop20_2019_2021 = L.tileLayer.wms("https://isk.geobasis-bb.de/mapproxy/dop20_2019_2021/service/wms", { layers: 'dop20_bebb_2019_2021_farbe', format: 'image/png', transparent: true, attribution: '<a href="https://isk.geobasis-bb.de/mapproxy/dop20_2019_2021/service/wms?">DOP20 2019-2021</a>' });
+    var dop20_2016_2018 = L.tileLayer.wms("https://isk.geobasis-bb.de/mapproxy/dop20_bebb_2016_2018_farbe/service/wms", { layers: 'dop20_bebb_2016_2018_graustufen', format: 'image/png', transparent: true, attribution: '<a href="https://isk.geobasis-bb.de/mapproxy/dop20_2016_2018/service/wms?">DOP20 2016-2018</a>' });
+    var dop20_2013_2015 = L.tileLayer.wms("https://isk.geobasis-bb.de/mapproxy/dop20_2013_2015/service/wms", { layers: 'dop20_bebb_2013_2015_farbe', format: 'image/png', transparent: true, attribution: '<a href="https://isk.geobasis-bb.de/mapproxy/dop20_2013_2015/service/wms?">DOP20 2013-2015</a>' });
+    var dop20_2009_2012 = L.tileLayer.wms("https://isk.geobasis-bb.de/mapproxy/dop20_2009_2012/service/wms", { layers: 'dop20_bebb_2009_2012_farbe', format: 'image/png', transparent: true, attribution: '<a href="https://isk.geobasis-bb.de/mapproxy/dop20_2009_2012/service/wms?">DOP20 2009-2012</a>' });
+    var dop20_2005_2010 = L.tileLayer.wms("https://isk.geobasis-bb.de/mapproxy/dop20_2005_2010/service/wms", { layers: 'dop20_bebb_2005_2010_farbe', format: 'image/png', transparent: true, attribution: '<a href="https://isk.geobasis-bb.de/mapproxy/dop20_2005_2010/service/wms?">DOP20 2005-2010</a>' });
+    var dop40g_2001_2009 = L.tileLayer.wms("https://isk.geobasis-bb.de/mapproxy/dop40g_2001_2009/service/wms", { layers: 'bb_dop40g_bebb_2001_2009_graustufen', format: 'image/png', transparent: true, attribution: '<a href="https://isk.geobasis-bb.de/mapproxy/dop40g_2001_2009/service/wms?">DOP40g 2001-2009</a>' });
+    var dop100g_2001_2005 = L.tileLayer.wms("https://isk.geobasis-bb.de/mapproxy/dop100g_2001_2005/service/wms", { layers: 'bb_dop100g_2001_2005_graustufen', format: 'image/png', transparent: true, attribution: '<a href="https://isk.geobasis-bb.de/mapproxy/dop100g_2001_2005/service/wms?">DOP100g 2001-2005</a>' });
+    var dtk25_1989_2001_farbe = L.tileLayer.wms("https://isk.geobasis-bb.de/mapproxy/dtk25_1989_2001_farbe/service/wms", { layers: 'dtk25_1989_2001_farbe', format: 'image/png', transparent: true, attribution: '<a href="https://isk.geobasis-bb.de/mapproxy/dtk25_1989_2001_farbe/service/wms?">DTK25 Farbe 1989-2001</a>' });
+    var inspire_cp = L.tileLayer.wms("https://inspire.brandenburg.de/services/cp_alkis_wms", { layers: 'CP.CadastralParcel', format: 'image/png', transparent: true, attribution: '<a href="https://inspire.brandenburg.de/services/cp_alkis_wms?">INSPIRE ALKIS CP</a>' });
+    var inspire_hy_n = L.tileLayer.wms("https://inspire.brandenburg.de/services/hy-n_bdlm_wms", { layers: 'HY-N.Network', format: 'image/png', transparent: true, attribution: '<a href="https://inspire.brandenburg.de/services/hy-n_bdlm_wms?">INSPIRE Hydro Netz</a>' });
+    var inspire_oi = L.tileLayer.wms("https://inspire.brandenburg.de/services/oi_dop20_wms", { layers: 'OI.Orthoimagery', format: 'image/png', transparent: true, attribution: '<a href="https://inspire.brandenburg.de/services/oi_dop20_wms?">INSPIRE Orthoimagery</a>' });
+    var inspire_el_dgm1 = L.tileLayer.wms("https://inspire.brandenburg.de/services/el_dgm1_wms", { layers: 'EL.ElevationGridCoverage', format: 'image/png', transparent: true, attribution: '<a href="https://inspire.brandenburg.de/services/el_dgm1_wms?">INSPIRE DGM1</a>' });
+    // Layer 'aktualitaeten' wurde oben nicht definiert.
+
+    // --- Layer Control Setup ---
+    // Array für Overlays - LEER, da alle WMS über Deckkraftregler gesteuert werden
+    var overlaysTree = [];
+
+    // Layer Control erstellen (wird leer sein oder nur Base Layer zeigen, falls welche definiert wären)
+    var lay = L.control.layers.tree(null, overlaysTree,{
+        collapsed: true,
+        position: 'topright'
+    });
+    lay.addTo(map); // Fügt das (leere) Steuerelement hinzu
+
+
+    // --- NEUE Logik für Deckkraft-Schieberegler (Add/Remove Layer) ---
+    function setupOpacityControl(sliderId, layerObject) {
+        var slider = document.getElementById(sliderId);
+        if (!slider) {
+            console.error("Slider mit ID nicht gefunden:", sliderId);
+            return; // Verhindert Fehler, wenn Slider im HTML fehlt
+        }
+
+        slider.addEventListener('input', function(e) {
+            var opacityValue = e.target.value / 100;
+
+            if (opacityValue > 0) {
+                // Wert ist größer 0: Layer hinzufügen (falls noch nicht drauf) und Deckkraft setzen
+                if (!map.hasLayer(layerObject)) {
+                    map.addLayer(layerObject);
+                }
+                layerObject.setOpacity(opacityValue);
+            } else {
+                // Wert ist 0: Layer entfernen (falls er drauf ist)
+                if (map.hasLayer(layerObject)) {
+                    map.removeLayer(layerObject);
+                }
+            }
+        });
+
+        // Sicherstellen, dass der initiale Zustand (0% Opacity = Layer nicht auf Karte) korrekt ist
+        if (parseInt(slider.value) === 0 && map.hasLayer(layerObject)) {
+             map.removeLayer(layerObject);
+        }
+        // Hinweis: Der Fall, dass ein Layer initial > 0 sein soll, wird hier nicht aktiv behandelt,
+        // da alle Regler auf 0 starten und die Layer initial nicht hinzugefügt werden.
+    }
+
+    // Wende die Funktion auf alle Layer und ihre Regler an
+    setupOpacityControl('opacity-DOP1953', DOP1953);
+    setupOpacityControl('opacity-DOP20', DOP20);
+    setupOpacityControl('opacity-dr25', dr25);
+    setupOpacityControl('opacity-Geleande', Geleande);
+    setupOpacityControl('opacity-SCH', SCH);
+    setupOpacityControl('opacity-DOP1997', DOP1997);
+    setupOpacityControl('opacity-alkis_flur', alkis_flur);
+    // setupOpacityControl('opacity-aktualitaeten', aktualitaeten); // Auskommentiert/Entfernt
+    setupOpacityControl('opacity-dop20_2019_2021', dop20_2019_2021);
+    setupOpacityControl('opacity-dop20_2016_2018', dop20_2016_2018);
+    setupOpacityControl('opacity-dop20_2013_2015', dop20_2013_2015);
+    setupOpacityControl('opacity-dop20_2009_2012', dop20_2009_2012);
+    setupOpacityControl('opacity-dop20_2005_2010', dop20_2005_2010);
+    setupOpacityControl('opacity-dop40g_2001_2009', dop40g_2001_2009);
+    setupOpacityControl('opacity-dop100g_2001_2005', dop100g_2001_2005);
+    setupOpacityControl('opacity-dtk25_1989_2001_farbe', dtk25_1989_2001_farbe);
+    setupOpacityControl('opacity-inspire_cp', inspire_cp);
+    setupOpacityControl('opacity-inspire_hy_n', inspire_hy_n);
+    setupOpacityControl('opacity-inspire_oi', inspire_oi);
+    setupOpacityControl('opacity-inspire_el_dgm1', inspire_el_dgm1);
+
+
+    // --- JavaScript für das Ein-/Ausblenden des Deckkraft-Bedienfelds (Unverändert) ---
+    var opacityControl = document.getElementById('opacity-control');
+    var opacityToggleButton = document.getElementById('opacity-toggle-button');
+
+    // Standardmäßig ausgeblendet beim Start
+    opacityControl.classList.add('hidden');
+
+    opacityToggleButton.addEventListener('click', function() {
+        opacityControl.classList.toggle('hidden');
+    });
+
+    </script>
+</body>
+</html>
